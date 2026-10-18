@@ -67,4 +67,42 @@ describe("open-in-chrome server", () => {
     });
     await harness.lifecycle.dispose();
   });
+
+  it("defaults app clicks to the primary connected machine", async () => {
+    const windowsHost = makeHostResponse({
+      id: "host_windows",
+      name: "windows-desktop",
+      status: "connected",
+      type: "persistent",
+      machineProviderId: "manual",
+    });
+    const { bb, harness } = createFakePluginHost({
+      pluginId: "open-in-chrome",
+      experimental_callHostRpc: async ({ hostId }) => {
+        expect(hostId).toBe("host_local");
+        return { url: "https://example.com/" };
+      },
+      sdk: {
+        hosts: {
+          list: async () => [connectedHost, windowsHost],
+        },
+        system: {
+          config: async () => ({ primaryHostId: "host_local" }),
+        },
+      },
+    });
+
+    await plugin(bb);
+    await expect(
+      harness.behavior.callRpc("openUrl", { url: "https://example.com" }),
+    ).resolves.toEqual({ url: "https://example.com/" });
+    expect(harness.inspection.experimental_hostRpcCalls).toEqual([
+      {
+        method: "openUrl",
+        input: { url: "https://example.com/" },
+        hostId: "host_local",
+      },
+    ]);
+    await harness.lifecycle.dispose();
+  });
 });

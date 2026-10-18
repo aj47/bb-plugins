@@ -29,13 +29,36 @@ export default async function plugin(bb: BbPluginApi) {
   const host = bb.hosts.experimental_client({ contract: hostContract });
 
   async function resolveHostId(explicitHostId?: string): Promise<string> {
-    if (explicitHostId !== undefined) return explicitHostId;
     const hosts = await bb.sdk.hosts.list();
     const connected = hosts.filter((candidate) => candidate.status === "connected");
-    if (connected.length === 1) return connected[0]!.id;
+    if (explicitHostId !== undefined) {
+      const match = connected.find((candidate) => candidate.id === explicitHostId);
+      if (match === undefined) {
+        throw new Error(
+          `machine ${explicitHostId} is not connected; pass a host id from ` +
+            "`bb machine list`",
+        );
+      }
+      return match.id;
+    }
     if (connected.length === 0) {
       throw new Error("no connected machine is available to open Chrome");
     }
+    if (connected.length === 1) return connected[0]!.id;
+
+    const { primaryHostId } = await bb.sdk.system.config();
+    const primary =
+      primaryHostId === null
+        ? undefined
+        : connected.find((candidate) => candidate.id === primaryHostId);
+    if (primary !== undefined) return primary.id;
+
+    const localDesktop = connected.find(
+      (candidate) =>
+        candidate.type === "persistent" && candidate.machineProviderId === null,
+    );
+    if (localDesktop !== undefined) return localDesktop.id;
+
     throw new Error(
       "more than one connected machine; pass --host <host-id> from `bb machine list`",
     );
