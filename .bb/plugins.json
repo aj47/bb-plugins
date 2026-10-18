@@ -1,0 +1,9 @@
+{
+  "$schema": "https://getbb.app/schemas/plugins.schema.json",
+  "schemaVersion": 1,
+  "name": "aj47-bb-plugins",
+  "plugins": [
+    { "name": "fork-and-agents", "source": "./fork-and-agents" },
+    { "name": "media", "source": "./media" }
+  ]
+}
