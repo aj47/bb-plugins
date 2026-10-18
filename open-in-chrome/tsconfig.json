@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM"],
+    "types": ["node"],
+    "noEmit": true,
+    "skipLibCheck": false
+  },
+  "include": [
+    "app.ts",
+    "chrome.ts",
+    "contract.ts",
+    "host.ts",
+    "server.ts",
+    "url.ts",
+    "*.test.ts",
+    "test-spawn.ts"
+  ]
+}

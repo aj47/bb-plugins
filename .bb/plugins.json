@@ -4,6 +4,7 @@
   "name": "aj47-bb-plugins",
   "plugins": [
     { "name": "fork-and-agents", "source": "./fork-and-agents" },
-    { "name": "media", "source": "./media" }
+    { "name": "media", "source": "./media" },
+    { "name": "open-in-chrome", "source": "./open-in-chrome" }
   ]
 }
