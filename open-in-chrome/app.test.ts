@@ -120,4 +120,39 @@ describe("open-in-chrome content script", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     await scripts.lifecycle.dispose();
   });
+
+  it("routes desktop openExternalUrl http links through plugin RPC", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ ok: true, result: { url: "https://example.com/" } }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const original = vi.fn();
+    const desktop = { openExternalUrl: original };
+    vi.stubGlobal("bbDesktop", desktop);
+
+    const app = await loadPluginApp(() => import("./app.ts"));
+    const scripts = await mountPluginContentScripts(app, {
+      pluginId: "open-in-chrome",
+    });
+
+    desktop.openExternalUrl("https://example.com");
+    desktop.openExternalUrl("mailto:aj@example.com");
+
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/v1/plugins/open-in-chrome/rpc/openUrl",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ url: "https://example.com" }),
+        }),
+      );
+    });
+    expect(original).toHaveBeenCalledTimes(1);
+    expect(original).toHaveBeenCalledWith("mailto:aj@example.com");
+
+    await scripts.lifecycle.dispose();
+    desktop.openExternalUrl("https://example.com/after-dispose");
+    expect(original).toHaveBeenCalledWith("https://example.com/after-dispose");
+  });
 });

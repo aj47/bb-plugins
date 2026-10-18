@@ -29,6 +29,52 @@ function disableInAppBrowserPreference(): void {
   }
 }
 
+interface BbDesktopBridge {
+  openExternalUrl?: (url: string) => unknown;
+  [key: string]: unknown;
+}
+
+function isHttpUrlString(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function installDesktopExternalUrlHook(
+  pluginId: string,
+  signal: AbortSignal,
+): void {
+  const desktop = (window as Window & { bbDesktop?: BbDesktopBridge }).bbDesktop;
+  if (desktop === undefined || typeof desktop.openExternalUrl !== "function") {
+    return;
+  }
+  const originalFn = desktop.openExternalUrl;
+  const original = originalFn.bind(desktop);
+  const wrapped = (url: string) => {
+    if (!isHttpUrlString(url)) {
+      return original(url);
+    }
+    void openUrl(pluginId, url).catch((error) => {
+      console.warn(
+        `[plugin:${pluginId}] failed to open ${url} in Chrome: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      original(url);
+    });
+  };
+  desktop.openExternalUrl = wrapped;
+  const restore = () => {
+    if (desktop.openExternalUrl === wrapped) {
+      desktop.openExternalUrl = originalFn;
+    }
+  };
+  signal.addEventListener("abort", restore, { once: true });
+}
+
 async function openUrl(pluginId: string, url: string): Promise<void> {
   const response = await fetch(`/api/v1/plugins/${pluginId}/rpc/openUrl`, {
     method: "POST",
@@ -54,6 +100,7 @@ export default definePluginApp((app) => {
     id: "open-http-links-in-chrome",
     mount({ pluginId, signal }) {
       disableInAppBrowserPreference();
+      installDesktopExternalUrlHook(pluginId, signal);
 
       const onClick = (event: MouseEvent) => {
         if (!shouldInterceptAnchorClick(event)) return;

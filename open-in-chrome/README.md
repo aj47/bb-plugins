@@ -2,7 +2,7 @@
 
 A bb plugin that opens HTTP(S) links you click in bb in Google Chrome, instead of bb's in-app browser.
 
-Ordinary left-clicks on external `http`/`https` links are intercepted in the app, including chat markdown links that bb renders with `target="_blank"`. Internal bb routes, modifier clicks (⌘-click, middle-click), `mailto:` links, and download links stay on their existing path. The plugin also turns off bb's "open links in the in-app browser" client preference so leftover host routing does not steal the click.
+Ordinary left-clicks on external `http`/`https` links are intercepted in the app, including chat markdown links that bb renders with `target="_blank"` and URLs clicked in bb terminals (xterm web-links / OSC-8). Internal bb routes, modifier clicks (⌘-click, middle-click), `mailto:` links, and download links stay on their existing path. The plugin also turns off bb's "open links in the in-app browser" client preference so leftover host routing does not steal the click.
 
 Chrome is launched on a connected machine through the plugin host entry (`open -a "Google Chrome"` on macOS).
 
