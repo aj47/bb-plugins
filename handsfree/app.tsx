@@ -30,7 +30,7 @@ function HandsFreeButton({ threadId }: { threadId: string }) {
       aria-pressed={active}
       onClick={() => toggleVoice(threadId)}
     >
-      <Icon name={active ? "AudioLines" : "Mic"} className="size-4" />
+      <Icon name="Mic" className="size-4" />
     </Button>
   );
 }
