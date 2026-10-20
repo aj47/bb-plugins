@@ -37,3 +37,7 @@ export function subscribeVoiceState(onChange: () => void): () => void {
 export function toggleVoice(threadId: string): void {
   shell().ReactNativeWebView?.postMessage(JSON.stringify({ type: "bbvoice.toggle", threadId }));
 }
+
+export function openVoiceSettings(): void {
+  shell().ReactNativeWebView?.postMessage(JSON.stringify({ type: "bbvoice.settings" }));
+}

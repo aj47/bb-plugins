@@ -3,13 +3,13 @@
 // in compact (phone) layout, so a content script places the button instead,
 // anchored on the composer's submit/voice button.
 import { definePluginApp } from "@get-bb/plugin-sdk/app";
-import { getVoiceState, inVoiceShell, subscribeVoiceState, toggleVoice, type VoicePhase } from "./bridge";
+import { getVoiceState, inVoiceShell, openVoiceSettings, subscribeVoiceState, toggleVoice, type VoicePhase } from "./bridge";
 
 const ANCHOR = "button[data-promptbox-submit-action]";
 const MARK = "data-bbvoice-realtime";
 
 const PHASE_LABEL: Record<VoicePhase, string> = {
-  off: "Start realtime voice",
+  off: "Start realtime voice (long-press for settings)",
   listening: "Realtime voice: listening. Tap to stop",
   hearing: "Realtime voice: hearing you. Tap to stop",
   thinking: "Realtime voice: agent working. Tap to stop",
@@ -64,9 +64,29 @@ function makeButton(): HTMLButtonElement {
   button.className =
     "inline-flex cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-state-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring relative size-8 p-0 max-md:pointer-coarse:size-10 mr-1";
   button.innerHTML = ICON;
+  // Tap toggles the session; long-press opens voice settings (mode, key, voice).
+  let pressTimer: ReturnType<typeof setTimeout> | null = null;
+  let longPressed = false;
+  const clearPress = () => {
+    if (pressTimer) clearTimeout(pressTimer);
+    pressTimer = null;
+  };
+  button.addEventListener("pointerdown", () => {
+    longPressed = false;
+    clearPress();
+    pressTimer = setTimeout(() => {
+      longPressed = true;
+      openVoiceSettings();
+    }, 550);
+  });
+  button.addEventListener("pointerup", clearPress);
+  button.addEventListener("pointercancel", clearPress);
+  button.addEventListener("pointerleave", clearPress);
+  button.addEventListener("contextmenu", (event) => event.preventDefault());
   button.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
+    if (longPressed) return;
     const threadId = openThreadId();
     if (threadId) toggleVoice(threadId);
   });
