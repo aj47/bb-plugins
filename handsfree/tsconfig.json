@@ -12,20 +12,12 @@
     "types": [
       "node"
     ],
-    "paths": {
-      "@/*": [
-        "./*"
-      ]
-    },
     "noEmit": true,
     "skipLibCheck": false
   },
   "include": [
     "server.ts",
     "app.tsx",
-    "bridge.ts",
-    "components",
-    "lib",
-    "hooks"
+    "bridge.ts"
   ]
 }
