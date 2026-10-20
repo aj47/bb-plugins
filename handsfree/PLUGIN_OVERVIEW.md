@@ -1,21 +1,11 @@
-Keep a todo list beside the work it belongs to, in the sidebar and in
-your agent threads.
+Talk to any bb thread hands-free from your phone, even with the screen off or locked.
 
 ## What you get
 
-- An **Example todos** page in the left sidebar that adds, completes, and
-  removes todos.
-- A `bb handsfree` command that does the same from a terminal.
-- Live updates, so a change made in one place reaches every open page at once.
+- A mic button in each thread's header when bb is open in the bb voice Android app.
+- Tap it to start a hands-free voice session on that thread: speak, pause, and your words are sent; the agent's reply is read aloud; then it listens again.
+- The button shows the session state (listening, agent working, speaking). Tap again to stop.
 
 ## How it works
 
-The todos live in this plugin's own storage on the BB server, one list per
-installation. Nothing leaves the machine, and the plugin needs no account, API
-key, or external service.
-
-## For agents
-
-The bundled skill tells an agent to read the list with `bb handsfree list`, add
-one todo at a time with `bb handsfree add`, and close finished work with
-`bb handsfree done`.
+The plugin is UI only. The bb voice app runs the voice loop natively (on-device speech recognition and text-to-speech in a foreground service), so it keeps working when the phone is locked. Outside that app the button is hidden.
