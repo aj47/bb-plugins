@@ -1,6 +1,6 @@
 # Hands-free voice
 
-Adds a mic button to bb thread headers that starts a hands-free voice session in the [bb voice](https://github.com/aj47/bb-voice) Android app, which loads bb's web UI and runs the voice loop natively, so it works with the screen off or locked.
+Adds a realtime voice button next to the composer mic that starts a hands-free voice session in the [bb voice](https://github.com/aj47/bb-voice) Android app, which loads bb's web UI and runs the voice loop natively, so it works with the screen off or locked.
 
 The button only renders inside bb voice (it checks for `window.__BB_VOICE__` and the React Native WebView bridge). Elsewhere the plugin does nothing.
 

@@ -10,7 +10,7 @@
     "name": "Hands-free voice",
     "description": "Talk to a thread hands-free, screen off or locked, from the bb voice Android app.",
     "branding": {
-      "icon": "Mic"
+      "icon": "AudioWaveform"
     },
     "server": "./server.ts",
     "app": "./app.tsx"

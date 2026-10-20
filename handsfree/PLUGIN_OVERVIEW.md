@@ -2,7 +2,7 @@ Talk to any bb thread hands-free from your phone, even with the screen off or lo
 
 ## What you get
 
-- A mic button in each thread's header when bb is open in the bb voice Android app.
+- A realtime voice button next to the dictation mic in each thread composer, when bb is open in the bb voice Android app.
 - Tap it to start a hands-free voice session on that thread: speak, pause, and your words are sent; the agent's reply is read aloud; then it listens again.
 - The button shows the session state (listening, agent working, speaking). Tap again to stop.
 
