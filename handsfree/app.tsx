@@ -175,7 +175,10 @@ function placeShellButtons(signal: AbortSignal) {
     const slot = anchor.parentElement; // span.relative.inline-flex
     const row = slot?.parentElement;
     if (!slot || !row) continue;
-    const existing = row.querySelector(`[${MARK}]`) as HTMLButtonElement | null;
+    // bb reuses composer DOM across pages, which can leave a button nested a level deeper.
+    const marked = Array.from(row.querySelectorAll(`[${MARK}]`)) as HTMLButtonElement[];
+    const existing = marked.find((el) => el.parentElement === row) ?? null;
+    marked.forEach((el) => el !== existing && el.remove());
     if (existing) renderShellButton(existing);
     else row.insertBefore(makeShellButton(signal), slot);
   }
