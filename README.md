@@ -8,7 +8,7 @@ Plugins for [bb](https://getbb.app), the agentic IDE.
 | [media](media) | Show local images, videos and audio inline in chat with a `::media{file="..."}` directive. |
 | [open-in-chrome](open-in-chrome) | Open HTTP(S) links clicked in bb in Google Chrome instead of the in-app browser. |
 | [grok-usage](grok-usage) | Show Grok Build / SuperGrok weekly quota in Settings → Usage limits. |
-| [handsfree](handsfree) | Realtime voice button next to the composer mic for hands-free, screen-off voice in the bb voice Android app. |
+| [handsfree](handsfree) | Realtime voice button next to the composer mic: hands-free voice with a thread's agent on desktop, or screen-off in the bb voice Android app. |
 
 ## Install
 

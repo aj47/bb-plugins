@@ -8,7 +8,7 @@
   },
   "bb": {
     "name": "Hands-free voice",
-    "description": "Talk to a thread hands-free, screen off or locked, from the bb voice Android app.",
+    "description": "Talk to a thread hands-free: on desktop in the page, or screen off from the bb voice Android app.",
     "branding": {
       "icon": "AudioWaveform"
     },
@@ -25,5 +25,9 @@
     "cron-parser": "^5.5.0",
     "hono": "^4.11.9",
     "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "@aj47/bb-voice-core": "^0.1.0",
+    "zod": "^4.6.5"
   }
 }

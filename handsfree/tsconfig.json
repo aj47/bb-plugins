@@ -18,6 +18,8 @@
   "include": [
     "server.ts",
     "app.tsx",
-    "bridge.ts"
+    "bridge.ts",
+    "desktop.ts",
+    "voice.ts"
   ]
 }

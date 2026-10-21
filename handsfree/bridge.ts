@@ -1,20 +1,10 @@
-// Bridge to the bb voice Android shell, which loads bb's web UI in a WebView
+// Bridge to the bb voice mobile shell, which loads bb's web UI in a WebView
 // and owns the native hands-free loop (foreground service, works locked).
-//
-// Shell → page: injects `window.__BB_VOICE__` before load and dispatches
-// `bbvoice:state` whenever the voice session changes.
-// Page → shell: `window.ReactNativeWebView.postMessage(JSON)`.
-
-export type VoicePhase = "off" | "listening" | "hearing" | "thinking" | "speaking" | "error";
-
-export type VoiceState = {
-  threadId: string | null;
-  phase: VoicePhase;
-  mode: "classic" | "live";
-};
+// The protocol types live in @aj47/bb-voice-core, shared with the shell.
+import { STATE_EVENT, type BridgeMessage, type BridgeState } from "@aj47/bb-voice-core";
 
 type ShellWindow = Window & {
-  __BB_VOICE__?: { version: number; state: VoiceState | null };
+  __BB_VOICE__?: { version: number; state: BridgeState | null };
   ReactNativeWebView?: { postMessage(message: string): void };
 };
 
@@ -25,19 +15,23 @@ export function inVoiceShell(): boolean {
   return Boolean(w.__BB_VOICE__ && w.ReactNativeWebView);
 }
 
-export function getVoiceState(): VoiceState | null {
+export function getVoiceState(): BridgeState | null {
   return shell().__BB_VOICE__?.state ?? null;
 }
 
 export function subscribeVoiceState(onChange: () => void): () => void {
-  window.addEventListener("bbvoice:state", onChange);
-  return () => window.removeEventListener("bbvoice:state", onChange);
+  window.addEventListener(STATE_EVENT, onChange);
+  return () => window.removeEventListener(STATE_EVENT, onChange);
+}
+
+function post(message: BridgeMessage) {
+  shell().ReactNativeWebView?.postMessage(JSON.stringify(message));
 }
 
 export function toggleVoice(threadId: string): void {
-  shell().ReactNativeWebView?.postMessage(JSON.stringify({ type: "bbvoice.toggle", threadId }));
+  post({ type: "bbvoice.toggle", threadId });
 }
 
 export function openVoiceSettings(): void {
-  shell().ReactNativeWebView?.postMessage(JSON.stringify({ type: "bbvoice.settings" }));
+  post({ type: "bbvoice.settings" });
 }

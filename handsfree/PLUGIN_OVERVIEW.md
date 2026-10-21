@@ -1,11 +1,12 @@
-Talk to any bb thread hands-free from your phone, even with the screen off or locked.
+Talk to any bb thread hands-free, on your desktop or from your phone with the screen off.
 
 ## What you get
 
-- A realtime voice button next to the dictation mic in each thread composer, when bb is open in the bb voice Android app.
+- A realtime voice button next to the dictation mic in each thread composer.
 - Tap it to start a hands-free voice session on that thread: speak, pause, and your words are sent; the agent's reply is read aloud; then it listens again.
-- The button shows the session state (listening, agent working, speaking). Tap again to stop.
+- A voice bar shows the session state (listening, agent working, speaking). Click it to interrupt, ✕ to stop.
+- Two modes: GPT-Live (OpenAI, your API key) for a natural conversation that can also switch and start threads, or Free, using bb's voice transcription and your system voice.
 
 ## How it works
 
-The plugin is UI only. The bb voice app runs the voice loop natively (on-device speech recognition and text-to-speech in a foreground service), so it keeps working when the phone is locked. Outside that app the button is hidden.
+On desktop the session runs in the bb window. In the bb voice Android app the button hands off to the app's native voice loop, which keeps working when the phone is locked. Both use the same voice engines.
