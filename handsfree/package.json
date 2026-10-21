@@ -27,7 +27,7 @@
     "typescript": "^5.7.0"
   },
   "dependencies": {
-    "@aj47/bb-voice-core": "^0.1.0",
+    "@aj47/bb-voice-core": "^0.1.1",
     "zod": "^4.6.5"
   }
 }

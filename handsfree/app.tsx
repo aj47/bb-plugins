@@ -10,10 +10,14 @@
 // that runs the same voice engines in the page, with a voice bar banner and a
 // quick-settings popup.
 //
+// A GPT-Live session's spoken conversation is stored per thread by the plugin
+// server and shown above the thread composer, since bb's timeline only holds
+// agent turns.
+//
 // On the new-thread composer the same button starts a session with no thread:
 // the first thing said becomes the first message of a new thread, which then opens.
 import { PHASE_NOTIFICATION, LIVE_VOICES, type Phase, type VoiceMode } from "@aj47/bb-voice-core";
-import { definePluginApp, useBbNavigate, useComposer, useRpc, useSdk, useSettings } from "@get-bb/plugin-sdk/app";
+import { definePluginApp, useBbNavigate, useComposer, useRealtime, useRpc, useSdk, useSettings } from "@get-bb/plugin-sdk/app";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   getVoiceState,
@@ -24,12 +28,13 @@ import {
   toggleVoice as toggleShellVoice,
 } from "./bridge";
 import type { rpcContract } from "./server";
-import { nudgeVoice, stopVoice, toggleNewThreadVoice, toggleVoice, useVoiceState, type VoiceDeps } from "./voice";
+import { nudgeVoice, setVoiceMicMuted, stopVoice, toggleNewThreadVoice, toggleVoice, useVoiceState, type VoiceDeps } from "./voice";
 
 const ANCHOR = "button[data-promptbox-submit-action]";
 const MARK = "data-bbvoice-realtime";
 const SETTINGS_POPUP = "voice-settings";
 const LONG_PRESS_MS = 550;
+const TRANSCRIPT_CHANNEL = "transcript"; // server.ts publishes on it after each append
 
 const PHASE_LABEL: Record<Phase, string> = {
   off: "Start realtime voice (long-press for settings)",
@@ -46,6 +51,13 @@ const ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="
   <path class="bbv-bar" d="M9.67 6v12" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
   <path class="bbv-bar" d="M14.33 8v8" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
   <path class="bbv-bar" d="M19 10.5v3" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+</svg>`;
+
+const MIC_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>
+</svg>`;
+const MIC_OFF_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d="M15 9.4V6a3 3 0 0 0-5.7-1.3M9 9v2a3 3 0 0 0 5.1 2.1M5 11a7 7 0 0 0 11.5 5.4M19 11a7 7 0 0 1-.6 2.8M12 18v3M3 3l18 18"/>
 </svg>`;
 
 // Same geometry as bb's dictation button, ghost-styled so it doesn't compete with it.
@@ -77,7 +89,21 @@ const CSS = `
 .bbv-banner-main { flex: 1; min-width: 0; text-align: left; cursor: pointer; background: none; border: 0; color: inherit; padding: 0; }
 .bbv-banner-phase { font-weight: 600; }
 .bbv-banner-sub { opacity: 0.75; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bbv-banner[data-muted="true"] { --bbv-tint: rgb(127 127 127 / 0.12); --bbv-edge: rgb(127 127 127 / 0.35); }
+.bbv-banner-mic { width: 26px; height: 26px; border-radius: 6px; border: 0; background: rgb(127 127 127 / 0.15); color: inherit; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; }
+.bbv-banner-mic[aria-checked="true"] { background: rgb(220 38 38 / 0.85); color: white; }
 .bbv-banner-stop { width: 26px; height: 26px; border-radius: 6px; border: 0; background: rgb(127 127 127 / 0.15); color: inherit; cursor: pointer; }
+
+.bbv-transcript { border-radius: 10px; border: 1px solid rgb(127 127 127 / 0.25); font-size: 13px; overflow: hidden; }
+.bbv-transcript-head { display: flex; width: 100%; align-items: center; gap: 8px; padding: 6px 10px; background: none; border: 0; color: inherit;
+  cursor: pointer; font-weight: 600; opacity: 0.85; text-align: left; }
+.bbv-transcript-head span:last-child { margin-left: auto; font-weight: 400; opacity: 0.7; }
+.bbv-transcript-body { display: flex; flex-direction: column; gap: 6px; padding: 4px 10px 10px; max-height: 35vh; overflow-y: auto; }
+.bbv-turn { max-width: 85%; padding: 6px 10px; border-radius: 12px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
+.bbv-turn[data-role="user"] { align-self: flex-end; background: rgb(127 127 127 / 0.18); border-bottom-right-radius: 4px; }
+.bbv-turn[data-role="assistant"] { align-self: flex-start; background: rgb(16 185 129 / 0.14); border-bottom-left-radius: 4px; }
+.bbv-turn-who { display: block; font-size: 11px; opacity: 0.6; margin-bottom: 1px; }
 
 .bbv-settings { display: flex; flex-direction: column; gap: 10px; padding: 12px; width: 300px; font-size: 13px; }
 .bbv-settings label { display: flex; flex-direction: column; gap: 4px; opacity: 0.9; }
@@ -170,18 +196,20 @@ function makeShellButton(signal: AbortSignal): HTMLButtonElement {
   return button;
 }
 
+// One button beside each composer's submit/voice button. bb reuses composer DOM
+// across pages, so any other button (nested deeper or in an outer row) is stale.
 function placeShellButtons(signal: AbortSignal) {
+  const placed = new Set<Element>();
   for (const anchor of Array.from(document.querySelectorAll(ANCHOR))) {
     const slot = anchor.parentElement; // span.relative.inline-flex
     const row = slot?.parentElement;
     if (!slot || !row) continue;
-    // bb reuses composer DOM across pages, which can leave a button nested a level deeper.
-    const marked = Array.from(row.querySelectorAll(`[${MARK}]`)) as HTMLButtonElement[];
-    const existing = marked.find((el) => el.parentElement === row) ?? null;
-    marked.forEach((el) => el !== existing && el.remove());
-    if (existing) renderShellButton(existing);
-    else row.insertBefore(makeShellButton(signal), slot);
+    let button = Array.from(row.children).find((el) => el.hasAttribute(MARK)) as HTMLButtonElement | undefined;
+    if (button) renderShellButton(button);
+    else row.insertBefore((button = makeShellButton(signal)), slot);
+    placed.add(button);
   }
+  document.querySelectorAll(`[${MARK}]`).forEach((el) => placed.has(el) || el.remove());
 }
 
 function mountShell(signal: AbortSignal) {
@@ -331,17 +359,83 @@ function VoiceBanner() {
   const phase = voice.snapshot?.phase ?? "thinking";
   const sub = voice.snapshot?.error ?? voice.snapshot?.partial ?? "";
   const mode = voice.mode === "live" ? "GPT-Live" : "Free";
+  const muted = Boolean(voice.snapshot?.micMuted);
+  const canMute = Boolean(voice.session) && phase !== "off" && phase !== "error";
   return (
-    <div className="bbv-banner" data-phase={phase}>
+    <div className="bbv-banner" data-phase={phase} data-muted={String(muted)}>
       <button type="button" className="bbv-banner-main" onClick={nudgeVoice}>
         <div className="bbv-banner-phase">
-          {voice.session ? labels[phase] : "Setup needed"} · {mode}
+          {voice.session ? labels[phase] : "Setup needed"}
+          {muted ? " · Mic muted" : ""} · {mode}
         </div>
         {sub ? <div className="bbv-banner-sub">{sub}</div> : null}
       </button>
+      {canMute ? (
+        <button
+          type="button"
+          className="bbv-banner-mic"
+          onClick={() => setVoiceMicMuted(!muted)}
+          role="switch"
+          aria-checked={muted}
+          aria-label={muted ? "Unmute microphone" : "Mute microphone"}
+          title={muted ? "Unmute microphone" : "Mute microphone"}
+          dangerouslySetInnerHTML={{ __html: muted ? MIC_OFF_ICON : MIC_ICON }}
+        />
+      ) : null}
       <button type="button" className="bbv-banner-stop" onClick={stopVoice} aria-label="Stop realtime voice">
         ✕
       </button>
+    </div>
+  );
+}
+
+type TranscriptEntry = { role: "user" | "assistant"; text: string; at: number };
+
+function VoiceTranscript() {
+  const composer = useComposer();
+  const rpc = useRpc<typeof rpcContract>();
+  const threadId = threadScope(composer);
+  const [entries, setEntries] = useState<TranscriptEntry[]>([]);
+  const [open, setOpen] = useState(true);
+  const body = useRef<HTMLDivElement>(null);
+
+  const load = useCallback(() => {
+    if (!threadId) return;
+    rpc.call("transcript.get", { threadId }).then((r) => setEntries(r.entries), () => {});
+  }, [rpc, threadId]);
+
+  useEffect(() => {
+    setEntries([]);
+    load();
+  }, [load]);
+
+  useRealtime(TRANSCRIPT_CHANNEL, (payload) => {
+    if ((payload as { threadId?: string } | null)?.threadId === threadId) load();
+  });
+
+  useEffect(() => {
+    if (open && body.current) body.current.scrollTop = body.current.scrollHeight;
+  }, [entries, open]);
+
+  if (!threadId || entries.length === 0) return null;
+  return (
+    <div className="bbv-transcript">
+      <button type="button" className="bbv-transcript-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <span>Voice conversation</span>
+        <span>
+          {entries.length} {open ? "▾" : "▸"}
+        </span>
+      </button>
+      {open ? (
+        <div className="bbv-transcript-body" ref={body}>
+          {entries.map((e, i) => (
+            <div key={`${e.at}-${i}`} className="bbv-turn" data-role={e.role}>
+              <span className="bbv-turn-who">{e.role === "user" ? "You" : "GPT-Live"}</span>
+              {e.text}
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -431,7 +525,10 @@ export default definePluginApp((app) => {
     id: "realtime-voice",
     scopes: ["thread", "new-thread"],
     actions: [{ id: "realtime-voice", component: RealtimeButton }],
-    banners: [{ id: "voice-bar", chrome: "bare", component: VoiceBanner }],
+    banners: [
+      { id: "voice-transcript", chrome: "bare", component: VoiceTranscript },
+      { id: "voice-bar", chrome: "bare", component: VoiceBanner },
+    ],
     experimental_popups: [{ id: SETTINGS_POPUP, label: "Realtime voice settings", component: VoiceSettings }],
   });
 });

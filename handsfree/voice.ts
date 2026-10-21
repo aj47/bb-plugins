@@ -84,7 +84,7 @@ async function startVoice(threadId: string | null, projectId: string | null, dep
 
   if (mode === "live" && !(await deps.hasApiKey())) {
     const error = "Add an OpenAI API key: right-click the voice button, or switch to Free mode.";
-    set({ threadId, title, mode, session: null, snapshot: { phase: "error", partial: "", log: [], error } });
+    set({ threadId, title, mode, session: null, snapshot: { phase: "error", partial: "", log: [], error, micMuted: false } });
     return;
   }
 
@@ -111,6 +111,10 @@ async function startVoice(threadId: string | null, projectId: string | null, dep
     if (state?.session === session) set({ ...state, snapshot });
   });
   await session.start();
+}
+
+export function setVoiceMicMuted(muted: boolean) {
+  state?.session?.setMicMuted(muted);
 }
 
 // Click on the bar: cut off speech, or resume a session that stopped or failed.
