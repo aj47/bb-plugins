@@ -24,8 +24,10 @@ export type VoiceDeps = {
   onThreadChange(threadId: string): void;
 };
 
+// threadId is null while a session started from the home page waits for the
+// first message, which creates the thread.
 export type VoiceState = {
-  threadId: string;
+  threadId: string | null;
   title: string;
   mode: VoiceMode;
   session: VoiceEngine | null;
@@ -60,16 +62,24 @@ export function stopVoice() {
 
 export function toggleVoice(threadId: string, deps: VoiceDeps) {
   if (state?.threadId === threadId) stopVoice();
-  else void startVoice(threadId, deps);
+  else void startVoice(threadId, null, deps);
 }
 
-async function startVoice(threadId: string, deps: VoiceDeps) {
+// Start a session with no thread; the first message starts one in projectId.
+export function toggleNewThreadVoice(projectId: string | null, deps: VoiceDeps) {
+  if (state && state.threadId === null) stopVoice();
+  else void startVoice(null, projectId, deps);
+}
+
+async function startVoice(threadId: string | null, projectId: string | null, deps: VoiceDeps) {
   stopVoice();
   const bb = client();
-  let title = threadId;
-  try {
-    title = threadLabel(await bb.getThread(threadId));
-  } catch {}
+  let title = threadId ?? "New thread";
+  if (threadId) {
+    try {
+      title = threadLabel(await bb.getThread(threadId));
+    } catch {}
+  }
   const { mode } = deps.prefs;
 
   if (mode === "live" && !(await deps.hasApiKey())) {
@@ -78,6 +88,11 @@ async function startVoice(threadId: string, deps: VoiceDeps) {
     return;
   }
 
+  const onThreadChange = (nextId: string, nextTitle: string) => {
+    if (state?.session !== session) return;
+    set({ ...state, threadId: nextId, title: nextTitle });
+    deps.onThreadChange(nextId);
+  };
   const session: VoiceEngine =
     mode === "live"
       ? new LiveSession(
@@ -86,13 +101,10 @@ async function startVoice(threadId: string, deps: VoiceDeps) {
           threadId,
           title,
           { model: deps.prefs.liveModel, voice: deps.prefs.liveVoice, delegateModel: deps.prefs.delegateModel },
-          (nextId, nextTitle) => {
-            if (state?.session !== session) return;
-            set({ ...state, threadId: nextId, title: nextTitle });
-            deps.onThreadChange(nextId);
-          },
+          onThreadChange,
+          projectId,
         )
-      : new ClassicSession(classicPlatform(deps.transcribe), bb, threadId, DEFAULT_SETTINGS, title);
+      : new ClassicSession(classicPlatform(deps.transcribe), bb, threadId, DEFAULT_SETTINGS, title, { projectId, onThreadChange });
 
   set({ threadId, title, mode, session, snapshot: null });
   session.subscribe((snapshot) => {

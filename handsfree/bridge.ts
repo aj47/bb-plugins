@@ -32,6 +32,10 @@ export function toggleVoice(threadId: string): void {
   post({ type: "bbvoice.toggle", threadId });
 }
 
+export function toggleNewThreadVoice(projectId: string | null): void {
+  post({ type: "bbvoice.newThread", projectId });
+}
+
 export function openVoiceSettings(): void {
   post({ type: "bbvoice.settings" });
 }

@@ -9,12 +9,22 @@
 // Everywhere else (the desktop app, a browser) the button is a composer action
 // that runs the same voice engines in the page, with a voice bar banner and a
 // quick-settings popup.
+//
+// On the new-thread composer the same button starts a session with no thread:
+// the first thing said becomes the first message of a new thread, which then opens.
 import { PHASE_NOTIFICATION, LIVE_VOICES, type Phase, type VoiceMode } from "@aj47/bb-voice-core";
 import { definePluginApp, useBbNavigate, useComposer, useRpc, useSdk, useSettings } from "@get-bb/plugin-sdk/app";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { getVoiceState, inVoiceShell, openVoiceSettings, subscribeVoiceState, toggleVoice as toggleShellVoice } from "./bridge";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+  getVoiceState,
+  inVoiceShell,
+  openVoiceSettings,
+  subscribeVoiceState,
+  toggleNewThreadVoice as toggleShellNewThreadVoice,
+  toggleVoice as toggleShellVoice,
+} from "./bridge";
 import type { rpcContract } from "./server";
-import { nudgeVoice, stopVoice, toggleVoice, useVoiceState, type VoiceDeps } from "./voice";
+import { nudgeVoice, stopVoice, toggleNewThreadVoice, toggleVoice, useVoiceState, type VoiceDeps } from "./voice";
 
 const ANCHOR = "button[data-promptbox-submit-action]";
 const MARK = "data-bbvoice-realtime";
@@ -124,11 +134,20 @@ function openThreadId(): string | null {
   return location.pathname.match(/\/threads\/(thr_[a-z0-9]+)/)?.[1] ?? null;
 }
 
+// The new-thread composer's project, recorded by its voice banner (null: bb picks the latest).
+let newThreadProjectId: string | null = null;
+
+// Off a thread page the button starts a new thread; a pending one has threadId null.
 function renderShellButton(button: HTMLButtonElement) {
   const threadId = openThreadId();
   const state = getVoiceState();
   const live = Boolean(state && state.threadId === threadId && state.phase !== "off");
   paint(button, live, live && state ? state.phase : "off");
+  if (!threadId) {
+    const label = live ? "New-thread voice: say your first message. Tap to stop" : "Start realtime voice in a new thread";
+    button.setAttribute("aria-label", label);
+    button.title = label;
+  }
 }
 
 function makeShellButton(signal: AbortSignal): HTMLButtonElement {
@@ -142,6 +161,7 @@ function makeShellButton(signal: AbortSignal): HTMLButtonElement {
     () => {
       const threadId = openThreadId();
       if (threadId) toggleShellVoice(threadId);
+      else toggleShellNewThreadVoice(newThreadProjectId);
     },
     openVoiceSettings,
     signal,
@@ -151,16 +171,11 @@ function makeShellButton(signal: AbortSignal): HTMLButtonElement {
 }
 
 function placeShellButtons(signal: AbortSignal) {
-  const inThread = openThreadId() !== null;
   for (const anchor of Array.from(document.querySelectorAll(ANCHOR))) {
     const slot = anchor.parentElement; // span.relative.inline-flex
     const row = slot?.parentElement;
     if (!slot || !row) continue;
     const existing = row.querySelector(`[${MARK}]`) as HTMLButtonElement | null;
-    if (!inThread) {
-      existing?.remove();
-      continue;
-    }
     if (existing) renderShellButton(existing);
     else row.insertBefore(makeShellButton(signal), slot);
   }
@@ -209,8 +224,13 @@ function useVoiceDeps(): () => VoiceDeps {
   });
 }
 
+// The thread a composer talks to; null for the new-thread composer.
 function threadScope(composer: ReturnType<typeof useComposer>) {
   return composer.scope.kind === "thread" ? composer.scope.threadId : null;
+}
+
+function newThreadProject(composer: ReturnType<typeof useComposer>) {
+  return composer.scope.kind === "new-thread" ? composer.scope.projectId : null;
 }
 
 function RealtimeButton() {
@@ -228,11 +248,15 @@ function RealtimeButton() {
 
   useEffect(() => {
     const button = ref.current;
-    if (!button || !threadId) return;
+    if (!button) return;
     const controller = new AbortController();
     bindPress(
       button,
-      () => toggleVoice(threadId, depsRef.current()),
+      () => {
+        const c = composerRef.current;
+        if (threadId) toggleVoice(threadId, depsRef.current());
+        else toggleNewThreadVoice(newThreadProject(c), depsRef.current());
+      },
       () => composerRef.current.experimental_openPopup(SETTINGS_POPUP),
       controller.signal,
     );
@@ -243,7 +267,7 @@ function RealtimeButton() {
     if (ref.current) paint(ref.current, live, phase);
   }, [live, phase]);
 
-  if (!threadId || inVoiceShell()) return null;
+  if (inVoiceShell()) return null;
   return <button ref={ref} type="button" {...{ [MARK]: "" }} className={BUTTON_CLASS} dangerouslySetInnerHTML={{ __html: ICON }} />;
 }
 
@@ -254,11 +278,53 @@ const BAR_LABEL: Record<Phase, string> = {
   error: "Error · click to retry",
 };
 
+const NEW_THREAD_LABEL: Record<Phase, string> = {
+  ...BAR_LABEL,
+  listening: "Listening · say the first message for a new thread",
+  thinking: "Starting a new thread",
+};
+
+// In the voice app, the new-thread composer's banner records the project and
+// opens the thread once the first message creates it; the app only reports the id.
+function useShellNewThread(composer: ReturnType<typeof useComposer>) {
+  const shellState = useSyncExternalStore(subscribeVoiceState, getVoiceState);
+  const navigate = useBbNavigate();
+  const pending = useRef(false);
+  const isNew = composer.scope.kind === "new-thread";
+  const projectId = newThreadProject(composer);
+  useEffect(() => {
+    if (isNew) newThreadProjectId = projectId;
+  }, [isNew, projectId]);
+  useEffect(() => {
+    if (!isNew || !inVoiceShell()) return;
+    if (shellState && shellState.threadId === null && shellState.phase !== "off") pending.current = true;
+    else if (pending.current) {
+      pending.current = false;
+      if (shellState?.threadId) navigate.toThread(shellState.threadId);
+    }
+  }, [isNew, shellState, navigate]);
+  return isNew && shellState?.threadId === null && shellState.phase !== "off" ? shellState : null;
+}
+
 function VoiceBanner() {
   const composer = useComposer();
   const voice = useVoiceState();
+  const shellPending = useShellNewThread(composer);
   const threadId = threadScope(composer);
+  if (shellPending) {
+    return (
+      <div className="bbv-banner" data-phase={shellPending.phase}>
+        <div className="bbv-banner-main">
+          <div className="bbv-banner-phase">{NEW_THREAD_LABEL[shellPending.phase]}</div>
+        </div>
+        <button type="button" className="bbv-banner-stop" onClick={() => toggleShellNewThreadVoice(null)} aria-label="Stop realtime voice">
+          ✕
+        </button>
+      </div>
+    );
+  }
   if (!voice || voice.threadId !== threadId || inVoiceShell()) return null;
+  const labels = threadId ? BAR_LABEL : NEW_THREAD_LABEL;
   const phase = voice.snapshot?.phase ?? "thinking";
   const sub = voice.snapshot?.error ?? voice.snapshot?.partial ?? "";
   const mode = voice.mode === "live" ? "GPT-Live" : "Free";
@@ -266,7 +332,7 @@ function VoiceBanner() {
     <div className="bbv-banner" data-phase={phase}>
       <button type="button" className="bbv-banner-main" onClick={nudgeVoice}>
         <div className="bbv-banner-phase">
-          {voice.session ? BAR_LABEL[phase] : "Setup needed"} · {mode}
+          {voice.session ? labels[phase] : "Setup needed"} · {mode}
         </div>
         {sub ? <div className="bbv-banner-sub">{sub}</div> : null}
       </button>
@@ -360,7 +426,7 @@ export default definePluginApp((app) => {
 
   app.composer.customize({
     id: "realtime-voice",
-    scopes: ["thread"],
+    scopes: ["thread", "new-thread"],
     actions: [{ id: "realtime-voice", component: RealtimeButton }],
     banners: [{ id: "voice-bar", chrome: "bare", component: VoiceBanner }],
     experimental_popups: [{ id: SETTINGS_POPUP, label: "Realtime voice settings", component: VoiceSettings }],
