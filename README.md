@@ -8,6 +8,7 @@ Plugins for [bb](https://getbb.app), the agentic IDE.
 | [media](media) | Show local images, videos and audio inline in chat with a `::media{file="..."}` directive. |
 | [open-in-chrome](open-in-chrome) | Open HTTP(S) links clicked in bb in Google Chrome instead of the in-app browser. |
 | [grok-usage](grok-usage) | Show Grok Build / SuperGrok weekly quota in Settings → Usage limits. |
+| [model-favorites](model-favorites) | Keep favorite agent models with nicknames, so the voice can start threads on "my fast model" or "my favorite". |
 | [handsfree](handsfree) | Realtime voice button next to the composer mic for hands-free, screen-off voice in the bb voice Android app. |
 
 ## Install
@@ -20,6 +21,7 @@ bb plugin install git:https://github.com/aj47/bb-plugins.git@main --plugin media
 bb plugin install git:https://github.com/aj47/bb-plugins.git@main --plugin open-in-chrome
 bb plugin install git:https://github.com/aj47/bb-plugins.git@main --plugin grok-usage
 bb plugin install git:https://github.com/aj47/bb-plugins.git@main --plugin handsfree
+bb plugin install git:https://github.com/aj47/bb-plugins.git@main --plugin model-favorites
 ```
 
 Or clone the repository and install a local copy, which picks up edits as you make them:

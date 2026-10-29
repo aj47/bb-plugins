@@ -22,6 +22,10 @@
     {
       "name": "handsfree",
       "source": "./handsfree"
+    },
+    {
+      "name": "model-favorites",
+      "source": "./model-favorites"
     }
   ]
 }
