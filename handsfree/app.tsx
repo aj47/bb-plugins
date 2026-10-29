@@ -247,6 +247,7 @@ function useVoiceDeps(): () => VoiceDeps {
       liveModel: String(values?.liveModel ?? ""),
       liveVoice: String(values?.liveVoice ?? ""),
       delegateModel: String(values?.delegateModel ?? ""),
+      threadModel: String(values?.threadModel ?? ""),
     },
     hasApiKey: async () => (await rpc.call("status")).hasApiKey,
     transcribe: async (file) => (await sdk.system.transcribeVoice({ file })).text,

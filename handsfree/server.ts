@@ -59,6 +59,11 @@ export default async function plugin(bb: BbPluginApi) {
       label: "Tool model (writes agent messages, runs bb tools)",
       default: DEFAULT_PREFS.delegateModel,
     },
+    threadModel: {
+      type: "string",
+      label: "New thread model when you don't name one (provider:model, e.g. codex:gpt-6-luna; blank = project default)",
+      default: DEFAULT_PREFS.threadModel,
+    },
   });
 
   type Entry = z.infer<typeof transcriptEntry>;

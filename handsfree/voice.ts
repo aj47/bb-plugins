@@ -5,6 +5,7 @@ import {
   ClassicSession,
   DEFAULT_SETTINGS,
   LiveSession,
+  parseThreadModel,
   threadLabel,
   type LiveSessionConfig,
   type VoiceEngine,
@@ -100,11 +101,20 @@ async function startVoice(threadId: string | null, projectId: string | null, dep
           bb,
           threadId,
           title,
-          { model: deps.prefs.liveModel, voice: deps.prefs.liveVoice, delegateModel: deps.prefs.delegateModel },
+          {
+            model: deps.prefs.liveModel,
+            voice: deps.prefs.liveVoice,
+            delegateModel: deps.prefs.delegateModel,
+            threadModel: deps.prefs.threadModel,
+          },
           onThreadChange,
           projectId,
         )
-      : new ClassicSession(classicPlatform(deps.transcribe), bb, threadId, DEFAULT_SETTINGS, title, { projectId, onThreadChange });
+      : new ClassicSession(classicPlatform(deps.transcribe), bb, threadId, DEFAULT_SETTINGS, title, {
+          projectId,
+          execution: parseThreadModel(deps.prefs.threadModel),
+          onThreadChange,
+        });
 
   set({ threadId, title, mode, session, snapshot: null });
   session.subscribe((snapshot) => {
