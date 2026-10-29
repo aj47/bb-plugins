@@ -1,0 +1,29 @@
+{
+  "name": "bb-plugin-streamer-mode",
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "bb": ">=0.46",
+    "bbPluginSdk": ">=0.6.49"
+  },
+  "bb": {
+    "name": "Streamer Mode",
+    "description": "Masks email addresses across the bb UI, including the usage menu, so they are safe to show on stream.",
+    "branding": {
+      "icon": "EyeOff"
+    },
+    "server": "./server.ts",
+    "app": "./app.tsx",
+    "skills": []
+  },
+  "devDependencies": {
+    "@get-bb/plugin-sdk": "0.6.49",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "better-sqlite3": "^12.11.1",
+    "cron-parser": "^5.10.2",
+    "hono": "^4.13.13",
+    "typescript": "^5.7.0"
+  }
+}
