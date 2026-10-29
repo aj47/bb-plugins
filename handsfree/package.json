@@ -6,6 +6,9 @@
     "bb": ">=0.46",
     "bbPluginSdk": ">=0.6.49"
   },
+  "scripts": {
+    "test": "npx -y vitest@4.1.12 run"
+  },
   "bb": {
     "name": "Hands-free voice",
     "description": "Talk to a thread hands-free: on desktop in the page, or screen off from the bb voice Android app.",

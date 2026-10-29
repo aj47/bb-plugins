@@ -20,6 +20,7 @@
     "app.tsx",
     "bridge.ts",
     "desktop.ts",
-    "voice.ts"
+    "voice.ts",
+    "display.ts"
   ]
 }

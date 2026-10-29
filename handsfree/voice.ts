@@ -85,7 +85,7 @@ async function startVoice(threadId: string | null, projectId: string | null, dep
 
   if (mode === "live" && !(await deps.hasApiKey())) {
     const error = "Add an OpenAI API key: right-click the voice button, or switch to Free mode.";
-    set({ threadId, title, mode, session: null, snapshot: { phase: "error", partial: "", log: [], error, micMuted: false } });
+    set({ threadId, title, mode, session: null, snapshot: { phase: "error", partial: "", log: [], error, micMuted: false, question: null, queued: 0 } });
     return;
   }
 

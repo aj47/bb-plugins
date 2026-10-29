@@ -16,7 +16,7 @@
 //
 // On the new-thread composer the same button starts a session with no thread:
 // the first thing said becomes the first message of a new thread, which then opens.
-import { PHASE_NOTIFICATION, LIVE_VOICES, type Phase, type VoiceMode } from "@aj47/bb-voice-core";
+import { LIVE_VOICES, type Phase, type VoiceMode } from "@aj47/bb-voice-core";
 import { definePluginApp, useBbNavigate, useComposer, useRealtime, useRpc, useSdk, useSettings } from "@get-bb/plugin-sdk/app";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
@@ -27,6 +27,7 @@ import {
   toggleNewThreadVoice as toggleShellNewThreadVoice,
   toggleVoice as toggleShellVoice,
 } from "./bridge";
+import { bannerView, NEW_THREAD_LABEL, paint, shellButtonState } from "./display";
 import type { rpcContract } from "./server";
 import { nudgeVoice, setVoiceMicMuted, stopVoice, toggleNewThreadVoice, toggleVoice, useVoiceState, type VoiceDeps } from "./voice";
 
@@ -35,15 +36,6 @@ const MARK = "data-bbvoice-realtime";
 const SETTINGS_POPUP = "voice-settings";
 const LONG_PRESS_MS = 550;
 const TRANSCRIPT_CHANNEL = "transcript"; // server.ts publishes on it after each append
-
-const PHASE_LABEL: Record<Phase, string> = {
-  off: "Start realtime voice (long-press for settings)",
-  listening: "Realtime voice: listening. Tap to stop",
-  hearing: "Realtime voice: hearing you. Tap to stop",
-  thinking: "Realtime voice: agent working. Tap to stop",
-  speaking: "Realtime voice: speaking. Tap to stop",
-  error: "Realtime voice: error. Tap to stop",
-};
 
 // Four rounded bars in bb's 1.5px stroke style; they bounce while live.
 const ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" class="size-5" data-icon-root="" aria-hidden="true">
@@ -69,6 +61,7 @@ const CSS = `
 [${MARK}][data-live="true"] { background-color: rgb(16 185 129 / 0.18); color: rgb(52 211 153); }
 [${MARK}][data-phase="speaking"] { background-color: rgb(59 130 246 / 0.2); color: rgb(96 165 250); }
 [${MARK}][data-phase="thinking"] { background-color: rgb(245 158 11 / 0.18); color: rgb(251 191 36); }
+[${MARK}][data-phase="asking"] { background-color: rgb(139 92 246 / 0.22); color: rgb(167 139 250); }
 [${MARK}][data-phase="error"] { background-color: rgb(239 68 68 / 0.18); color: rgb(248 113 113); }
 [${MARK}] .bbv-bar { transform-box: fill-box; transform-origin: center; }
 [${MARK}][data-live="true"] .bbv-bar { animation: bbv-bounce 900ms ease-in-out infinite; }
@@ -76,6 +69,7 @@ const CSS = `
 [${MARK}][data-live="true"] .bbv-bar:nth-child(3) { animation-delay: -600ms; }
 [${MARK}][data-live="true"] .bbv-bar:nth-child(4) { animation-delay: -150ms; }
 [${MARK}][data-phase="thinking"] .bbv-bar { animation-duration: 1800ms; }
+[${MARK}][data-phase="asking"] .bbv-bar { animation-duration: 600ms; }
 @keyframes bbv-bounce { 0%, 100% { transform: scaleY(0.55); } 50% { transform: scaleY(1.15); } }
 @media (prefers-reduced-motion: reduce) { [${MARK}] .bbv-bar { animation: none !important; } }
 
@@ -84,11 +78,13 @@ const CSS = `
 .bbv-banner[data-phase="listening"], .bbv-banner[data-phase="hearing"] { --bbv-tint: rgb(16 185 129 / 0.12); --bbv-edge: rgb(16 185 129 / 0.3); }
 .bbv-banner[data-phase="thinking"] { --bbv-tint: rgb(245 158 11 / 0.12); --bbv-edge: rgb(245 158 11 / 0.3); }
 .bbv-banner[data-phase="speaking"] { --bbv-tint: rgb(59 130 246 / 0.12); --bbv-edge: rgb(59 130 246 / 0.3); }
+.bbv-banner[data-phase="asking"] { --bbv-tint: rgb(139 92 246 / 0.14); --bbv-edge: rgb(139 92 246 / 0.4); }
 .bbv-banner[data-phase="error"] { --bbv-tint: rgb(239 68 68 / 0.12); --bbv-edge: rgb(239 68 68 / 0.3); }
 .bbv-banner[data-phase="off"] { --bbv-tint: rgb(127 127 127 / 0.1); --bbv-edge: rgb(127 127 127 / 0.25); }
 .bbv-banner-main { flex: 1; min-width: 0; text-align: left; cursor: pointer; background: none; border: 0; color: inherit; padding: 0; }
 .bbv-banner-phase { font-weight: 600; }
 .bbv-banner-sub { opacity: 0.75; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bbv-banner[data-phase="asking"] .bbv-banner-sub { opacity: 0.95; font-style: normal; white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
 .bbv-banner[data-muted="true"] { --bbv-tint: rgb(127 127 127 / 0.12); --bbv-edge: rgb(127 127 127 / 0.35); }
 .bbv-banner-mic { width: 26px; height: 26px; border-radius: 6px; border: 0; background: rgb(127 127 127 / 0.15); color: inherit; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center; }
@@ -146,14 +142,6 @@ function bindPress(button: HTMLElement, onTap: () => void, onSettings: () => voi
   }, opts);
 }
 
-function paint(button: HTMLElement, live: boolean, phase: Phase) {
-  button.dataset.live = String(live);
-  button.dataset.phase = phase;
-  button.setAttribute("aria-pressed", String(live));
-  button.setAttribute("aria-label", PHASE_LABEL[phase]);
-  button.title = PHASE_LABEL[phase];
-}
-
 // ---- bb voice mobile shell -------------------------------------------------------
 
 function openThreadId(): string | null {
@@ -166,9 +154,8 @@ let newThreadProjectId: string | null = null;
 // Off a thread page the button starts a new thread; a pending one has threadId null.
 function renderShellButton(button: HTMLButtonElement) {
   const threadId = openThreadId();
-  const state = getVoiceState();
-  const live = Boolean(state && state.threadId === threadId && state.phase !== "off");
-  paint(button, live, live && state ? state.phase : "off");
+  const { live, phase } = shellButtonState(getVoiceState(), threadId);
+  paint(button, live, phase);
   if (!threadId) {
     const label = live ? "New-thread voice: say your first message. Tap to stop" : "Start realtime voice in a new thread";
     button.setAttribute("aria-label", label);
@@ -303,19 +290,6 @@ function RealtimeButton() {
   return <button ref={ref} type="button" {...{ [MARK]: "" }} className={BUTTON_CLASS} dangerouslySetInnerHTML={{ __html: ICON }} />;
 }
 
-const BAR_LABEL: Record<Phase, string> = {
-  ...PHASE_NOTIFICATION,
-  off: "Off · click to resume",
-  speaking: "Speaking · click to interrupt",
-  error: "Error · click to retry",
-};
-
-const NEW_THREAD_LABEL: Record<Phase, string> = {
-  ...BAR_LABEL,
-  listening: "Listening · say the first message for a new thread",
-  thinking: "Starting a new thread",
-};
-
 // In the voice app, the new-thread composer's banner records the project and
 // opens the thread once the first message creates it; the app only reports the id.
 function useShellNewThread(composer: ReturnType<typeof useComposer>) {
@@ -356,20 +330,16 @@ function VoiceBanner() {
     );
   }
   if (!voice || voice.threadId !== threadId || inVoiceShell()) return null;
-  const labels = threadId ? BAR_LABEL : NEW_THREAD_LABEL;
-  const phase = voice.snapshot?.phase ?? "thinking";
-  const sub = voice.snapshot?.error ?? voice.snapshot?.partial ?? "";
-  const mode = voice.mode === "live" ? "GPT-Live" : "Free";
-  const muted = Boolean(voice.snapshot?.micMuted);
-  const canMute = Boolean(voice.session) && phase !== "off" && phase !== "error";
+  const { phase, title, detail, muted, canMute } = bannerView({ mode: voice.mode, hasSession: Boolean(voice.session), snapshot: voice.snapshot }, !threadId);
   return (
     <div className="bbv-banner" data-phase={phase} data-muted={String(muted)}>
       <button type="button" className="bbv-banner-main" onClick={nudgeVoice}>
-        <div className="bbv-banner-phase">
-          {voice.session ? labels[phase] : "Setup needed"}
-          {muted ? " · Mic muted" : ""} · {mode}
-        </div>
-        {sub ? <div className="bbv-banner-sub">{sub}</div> : null}
+        <div className="bbv-banner-phase">{title}</div>
+        {detail ? (
+          <div className="bbv-banner-sub" role={phase === "asking" ? "status" : undefined}>
+            {detail}
+          </div>
+        ) : null}
       </button>
       {canMute ? (
         <button
