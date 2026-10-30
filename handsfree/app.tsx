@@ -367,7 +367,7 @@ function VoiceTranscript() {
   const rpc = useRpc<typeof rpcContract>();
   const threadId = threadScope(composer);
   const [entries, setEntries] = useState<TranscriptEntry[]>([]);
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const body = useRef<HTMLDivElement>(null);
 
   const load = useCallback(() => {
