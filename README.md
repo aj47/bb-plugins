@@ -10,6 +10,7 @@ Plugins for [bb](https://getbb.app), the agentic IDE.
 | [grok-usage](grok-usage) | Show Grok Build / SuperGrok weekly quota in Settings → Usage limits. |
 | [model-favorites](model-favorites) | Keep favorite agent models with nicknames, so the voice can start threads on "my fast model" or "my favorite". |
 | [streamer-mode](streamer-mode) | Mask email addresses across the bb UI, including the usage menu, so they are safe to show on stream. |
+| [suggested-next-steps](suggested-next-steps) | Agents end replies with two to four suggested follow-ups, shown as one-click buttons under the message. |
 | [handsfree](handsfree) | Realtime voice button next to the composer mic for hands-free, screen-off voice in the bb voice Android app. |
 
 ## Install
@@ -24,6 +25,7 @@ bb plugin install git:https://github.com/aj47/bb-plugins.git@main --plugin grok-
 bb plugin install git:https://github.com/aj47/bb-plugins.git@main --plugin handsfree
 bb plugin install git:https://github.com/aj47/bb-plugins.git@main --plugin model-favorites
 bb plugin install git:https://github.com/aj47/bb-plugins.git@main --plugin streamer-mode
+bb plugin install git:https://github.com/aj47/bb-plugins.git@main --plugin suggested-next-steps
 ```
 
 Or clone the repository and install a local copy, which picks up edits as you make them:

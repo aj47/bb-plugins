@@ -30,6 +30,10 @@
     {
       "name": "streamer-mode",
       "source": "./streamer-mode"
+    },
+    {
+      "name": "suggested-next-steps",
+      "source": "./suggested-next-steps"
     }
   ]
 }
