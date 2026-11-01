@@ -13,13 +13,42 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
+function stubDesktop(): void {
+  vi.stubGlobal("bbDesktop", { openExternalUrl: vi.fn() });
+}
+
 describe("open-in-chrome content script", () => {
+  it("leaves links alone outside the desktop app (mobile/web)", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const app = await loadPluginApp(() => import("./app.ts"));
+    const scripts = await mountPluginContentScripts(app, {
+      pluginId: "open-in-chrome",
+    });
+
+    expect(window.localStorage.getItem("bb.openLinksInAppBrowser")).toBeNull();
+    const link = document.createElement("a");
+    link.href = "https://example.com";
+    document.body.append(link);
+    const event = new MouseEvent("click", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+    });
+    link.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+    await scripts.lifecycle.dispose();
+  });
+
   it("sends ordinary http link clicks to plugin RPC and disables the in-app browser preference", async () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
       json: async () => ({ ok: true, result: { url: "https://example.com/" } }),
     }));
     vi.stubGlobal("fetch", fetchMock);
+    stubDesktop();
 
     const app = await loadPluginApp(() => import("./app.ts"));
     const scripts = await mountPluginContentScripts(app, {
@@ -57,6 +86,7 @@ describe("open-in-chrome content script", () => {
       json: async () => ({ ok: true, result: { url: "https://example.com/" } }),
     }));
     vi.stubGlobal("fetch", fetchMock);
+    stubDesktop();
 
     const app = await loadPluginApp(() => import("./app.ts"));
     const scripts = await mountPluginContentScripts(app, {
@@ -93,6 +123,7 @@ describe("open-in-chrome content script", () => {
   it("leaves same-origin and modified clicks alone", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
+    stubDesktop();
     const app = await loadPluginApp(() => import("./app.ts"));
     const scripts = await mountPluginContentScripts(app, {
       pluginId: "open-in-chrome",

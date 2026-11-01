@@ -43,11 +43,15 @@ function isHttpUrlString(url: string): boolean {
   }
 }
 
+function desktopBridge(): BbDesktopBridge | undefined {
+  return (window as Window & { bbDesktop?: BbDesktopBridge }).bbDesktop;
+}
+
 function installDesktopExternalUrlHook(
   pluginId: string,
   signal: AbortSignal,
 ): void {
-  const desktop = (window as Window & { bbDesktop?: BbDesktopBridge }).bbDesktop;
+  const desktop = desktopBridge();
   if (desktop === undefined || typeof desktop.openExternalUrl !== "function") {
     return;
   }
@@ -99,6 +103,10 @@ export default definePluginApp((app) => {
   app.contentScripts.register({
     id: "open-http-links-in-chrome",
     mount({ pluginId, signal }) {
+      // Chrome launches on the host machine, so only take over links in the
+      // desktop app. Mobile and remote web clients keep their own browser.
+      if (desktopBridge() === undefined) return;
+
       disableInAppBrowserPreference();
       installDesktopExternalUrlHook(pluginId, signal);
 
