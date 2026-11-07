@@ -8,7 +8,7 @@
   },
   "bb": {
     "name": "Kanban",
-    "description": "One board for all work in progress: backlog, to-do, doing, done, blocked, archived.",
+    "description": "One board for all work in progress: needs you, backlog, to-do, doing, done, blocked, archived.",
     "branding": {
       "icon": "./icons/kanban.svg"
     },

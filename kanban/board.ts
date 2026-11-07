@@ -1,13 +1,55 @@
 // The board file. It keeps the format of the standalone `kb` board
 // ({ lanes: [{id, name}], items: [{id, title, note, lane, created, updated}] })
 // and its `<file>.lock` protocol, so `kb` and this plugin can share one file.
-// Statuses are fixed; every write stores the six canonical lanes.
+// Statuses are fixed; every write stores the canonical lanes.
 import { randomBytes } from "node:crypto";
 import { mkdir, open, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { STATUSES, STATUS_NAMES, type Item, type Status } from "./statuses";
+import { STATUSES, STATUS_NAMES, type Action, type Item, type Status } from "./statuses";
+import { assertCard } from "./rules";
 
 export * from "./statuses";
+
+/** The fields a write may set. */
+export interface CardInput {
+  title?: string;
+  why?: string;
+  tags?: string[];
+  actions?: Action[];
+  waitsOn?: string;
+  note?: string;
+  status?: Status;
+}
+
+const clean = (s: string | undefined) => (s === undefined ? undefined : s.trim());
+const cleanTags = (tags: string[] | undefined) =>
+  tags === undefined ? undefined : [...new Set(tags.map((t) => t.trim().toLowerCase()).filter(Boolean))];
+const cleanActions = (actions: Action[] | undefined) =>
+  actions?.map((a) => {
+    const out: Action = { label: a.label?.trim() ?? "" };
+    if (a.prompt?.trim()) out.prompt = a.prompt.trim();
+    if (a.project) out.project = a.project;
+    if (a.recommended) out.recommended = true;
+    if (a.archive) out.archive = true;
+    return out;
+  });
+
+/** Apply a patch to a card in place; empty strings clear optional fields. */
+function apply(item: Item, patch: CardInput) {
+  if (patch.title !== undefined) item.title = patch.title.trim();
+  if (patch.note !== undefined) item.note = patch.note;
+  if (patch.status !== undefined) item.lane = patch.status;
+  for (const key of ["why", "waitsOn"] as const) {
+    const v = clean(patch[key]);
+    if (v === undefined) continue;
+    if (v) item[key] = v;
+    else delete item[key];
+  }
+  const tags = cleanTags(patch.tags);
+  if (tags !== undefined) item.tags = tags;
+  const actions = cleanActions(patch.actions);
+  if (actions !== undefined) item.actions = actions;
+}
 
 interface Board {
   lanes: { id: string; name: string }[];
@@ -21,6 +63,10 @@ const ALIASES: Record<string, Status> = {
   inprogress: "doing",
   wip: "doing",
   archive: "archived",
+  needsyou: "needs-you",
+  needsaj: "needs-you",
+  you: "needs-you",
+  decide: "needs-you",
 };
 
 const squash = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -144,24 +190,43 @@ export function createBoard(file: string, onChange: () => void = () => {}) {
     async get(id: string): Promise<Item> {
       return find(await read(), id);
     },
-    async add(input: { title: string; note?: string; status?: Status }): Promise<Item> {
+    async add(input: CardInput & { title: string }): Promise<Item> {
       const title = cleanTitle(input.title);
       return mutate((board) => {
         let id = randomBytes(3).toString("hex");
         while (board.items.some((i) => i.id === id)) id = randomBytes(3).toString("hex");
-        const item: Item = { id, title, note: input.note ?? "", lane: input.status ?? "backlog", created: now(), updated: now() };
+        const item: Item = { id, title, note: "", lane: "backlog", created: now(), updated: now() };
+        apply(item, { ...input, title });
+        assertCard(item);
         board.items.push(item);
         return item;
       });
     },
-    async update(id: string, patch: { title?: string; note?: string; status?: Status }): Promise<Item> {
-      const title = patch.title === undefined ? undefined : cleanTitle(patch.title);
+    /**
+     * Patch a card. The rules run on the result.
+     */
+    async update(id: string, patch: CardInput & { addThread?: string }): Promise<Item> {
+      if (patch.title !== undefined) cleanTitle(patch.title);
       return mutate((board) => {
         const item = find(board, id);
-        if (title !== undefined) item.title = title;
-        if (patch.note !== undefined) item.note = patch.note;
-        if (patch.status !== undefined) item.lane = patch.status;
-        item.updated = now();
+        const next: Item = structuredClone(item);
+        apply(next, patch);
+        if (patch.addThread) next.threads = [...new Set([...(next.threads ?? []), patch.addThread])];
+        const notesOnly = Object.keys(patch).every((k) => k === "note" || k === "addThread");
+        const wasValid = (() => {
+          try {
+            assertCard(item);
+            return true;
+          } catch {
+            return false;
+          }
+        })();
+        // An old card that never met the rules may still get notes and threads,
+        // and may close (closed cards skip the rules); anything else must bring
+        // it up to the rules.
+        if (!(notesOnly && !wasValid)) assertCard(next);
+        next.updated = now();
+        Object.assign(item, next);
         return item;
       });
     },
