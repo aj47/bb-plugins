@@ -186,7 +186,21 @@ export function livePlatform(negotiate: (offerSdp: string, session: LiveSessionC
       audio.autoplay = true;
       audio.srcObject = stream as MediaStream;
       document.body.appendChild(audio);
+      // Android WebViews pause media when the app is backgrounded and don't
+      // resume it, which leaves the session connected but silent.
+      const resume = () => {
+        if (!audio.paused || document.visibilityState !== "visible") return;
+        void audio.play().catch(() => {
+          // Blocked until a user gesture; the next tap retries.
+          document.addEventListener("pointerdown", resume, { once: true, capture: true });
+        });
+      };
+      audio.addEventListener("pause", resume);
+      document.addEventListener("visibilitychange", resume);
       return () => {
+        audio.removeEventListener("pause", resume);
+        document.removeEventListener("visibilitychange", resume);
+        document.removeEventListener("pointerdown", resume, { capture: true });
         audio.srcObject = null;
         audio.remove();
       };
