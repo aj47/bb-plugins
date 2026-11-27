@@ -16,6 +16,21 @@ The format is the standalone `kb` tool's (`{ lanes, items: [{ id, title, note, l
 
 Every write publishes `board-changed`, and a watcher does the same for writes from outside the plugin, so open pages reload. Those signals are ephemeral, so a page also reloads when its realtime connection returns and when it regains focus or becomes visible. A write the server refuses reloads the board too, which puts an optimistically moved card back.
 
+## Keep the board in sync with threads
+
+[`sync-prompt.md`](sync-prompt.md) is a prompt for a scheduled bb agent that updates cards from what threads decided. Each run it reads threads with new activity since its last run, including old threads that got new turns, and matches them to cards by thread ref, card id or the same deliverable. It also audits open cards: one whose deadline has passed, or a `doing` card with no activity for a week, moves to `blocked` and waits on you to confirm. It never deletes a card, never archives or closes one without evidence, and never creates a `needs-you` card. It keeps a watermark in `sync-state.json` next to the board file.
+
+Run it three times a day:
+
+```sh
+bb automation create --project proj_personal --name "Kanban sync" \
+  --cron "0 9,15,21 * * *" --timezone America/Los_Angeles \
+  --provider claude-code --model claude-sonnet-5-5 --permission-mode full \
+  --prompt "$(cat kanban/sync-prompt.md)"
+```
+
+Use your own timezone, provider and model. To skip more of your own routine automations, add their titles to the "Skip routine automation runs" line.
+
 ## Develop
 
 ```sh

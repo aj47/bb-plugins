@@ -38,6 +38,10 @@
     {
       "name": "read-aloud",
       "source": "./read-aloud"
+    },
+    {
+      "name": "kanban",
+      "source": "./kanban"
     }
   ]
 }
