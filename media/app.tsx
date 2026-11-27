@@ -4,10 +4,12 @@
 // @get-bb/plugin-sdk/app are provided by the BB app at load time.
 //
 // Registers the `::media{file="/abs/path.png"}` assistant-message directive,
-// which shows a local image, video or audio file inline in chat.
+// which shows a local image, video or audio file inline in chat, and a
+// content script that lets a long press save any chat image on a phone.
 import { useEffect, useState } from "react";
 import { definePluginApp, useRpc } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server";
+import { mountSaveImage } from "./save-image";
 
 type Preview = { url: string; kind: "image" | "video" | "audio"; name: string };
 
@@ -77,4 +79,5 @@ function MediaDirective({
 
 export default definePluginApp((app) => {
   app.slots.messageDirective({ id: "media", component: MediaDirective });
+  app.contentScripts.register({ id: "save-image", mount: mountSaveImage });
 });
