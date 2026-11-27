@@ -5,7 +5,7 @@ Plugins for [bb](https://getbb.app), the agentic IDE.
 | Plugin | What it does |
 | --- | --- |
 | [fork-and-agents](fork-and-agents) | Fork a thread from any message, and see a thread's background tasks, subagents and child threads. |
-| [media](media) | Show local images, videos and audio inline in chat with a `::media{file="..."}` directive. |
+| [media](media) | Show local images, videos and audio inline in chat with a `::media{file="..."}` directive, and long-press any chat image on a phone to save it. |
 | [open-in-chrome](open-in-chrome) | Open HTTP(S) links clicked in bb in Google Chrome instead of the in-app browser. |
 | [grok-usage](grok-usage) | Show Grok Build / SuperGrok weekly quota in Settings → Usage limits. |
 | [model-favorites](model-favorites) | Keep favorite agent models with nicknames, so the voice can start threads on "my fast model" or "my favorite". |
