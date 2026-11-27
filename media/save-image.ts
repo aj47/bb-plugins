@@ -53,24 +53,35 @@ function fileNameFor(src: string, alt: string, mimeType: string | null): string 
   return `${base}.${extension ?? "png"}`;
 }
 
+// Runs synchronously inside the tap so iOS treats it as a user gesture.
+// The share sheet (Web Share with a file) is how iOS saves to Photos; a
+// download link is silently ignored in iOS web views and home-screen apps.
+// Elsewhere, or when sharing is unavailable, use bb's download path.
+function saveImage(src: string, alt: string, blob: Blob | null): void {
+  const fileName = fileNameFor(src, alt, blob?.type ?? null);
+  const fallback = () => {
+    const isHttp = /^https?:/i.test(new URL(src, location.href).protocol);
+    void experimental_saveFile(blob && !isHttp ? { fileName, blob } : { fileName, url: src });
+  };
+  if (blob && typeof navigator.share === "function" && typeof File === "function") {
+    const file = new File([blob], fileName, { type: blob.type || "image/png" });
+    const data = { files: [file] };
+    if (typeof navigator.canShare !== "function" || navigator.canShare(data)) {
+      navigator.share(data).catch((error: unknown) => {
+        // AbortError means the user closed the share sheet.
+        if (!(error instanceof DOMException && error.name === "AbortError")) fallback();
+      });
+      return;
+    }
+  }
+  fallback();
+}
+
 type SheetHandle = { close: () => void };
 
 function openSheet(image: HTMLImageElement, signal: AbortSignal): SheetHandle {
   const src = image.currentSrc || image.src;
   const alt = image.alt;
-
-  // Fetch the bytes while the sheet is open so the tap can hand over a blob
-  // without awaiting. Falls back to the URL when the fetch fails.
-  let blob: Blob | null = null;
-  const fetchAbort = new AbortController();
-  fetch(src, { credentials: "include", signal: fetchAbort.signal })
-    .then((response) => (response.ok ? response.blob() : null))
-    .then((result) => {
-      blob = result;
-    })
-    .catch(() => {
-      blob = null;
-    });
 
   const root = document.createElement("div");
   root.setAttribute(ROOT_ATTR, "");
@@ -143,6 +154,28 @@ function openSheet(image: HTMLImageElement, signal: AbortSignal): SheetHandle {
   cancel.style.background = "var(--popover, #1c1c1e)";
   cancel.style.color = "var(--popover-foreground, #fff)";
 
+  // Fetch the bytes while the sheet is open so the tap can share them
+  // synchronously, inside its user gesture. The button waits for the fetch.
+  let blob: Blob | null = null;
+  const fetchAbort = new AbortController();
+  save.disabled = true;
+  save.textContent = "Preparing…";
+  save.style.opacity = "0.5";
+  const ready = () => {
+    save.disabled = false;
+    save.textContent = "Save image";
+    save.style.opacity = "1";
+  };
+  fetch(src, { credentials: "include", signal: fetchAbort.signal })
+    .then((response) => (response.ok ? response.blob() : null))
+    .then((result) => {
+      blob = result;
+      ready();
+    })
+    .catch(() => {
+      if (!fetchAbort.signal.aborted) ready();
+    });
+
   group.append(preview, save);
   panel.append(group, cancel);
   root.append(panel);
@@ -166,9 +199,7 @@ function openSheet(image: HTMLImageElement, signal: AbortSignal): SheetHandle {
   save.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    const fileName = fileNameFor(src, alt, blob?.type ?? null);
-    // saveFile clicks its link synchronously, inside this tap's gesture.
-    void experimental_saveFile(blob ? { fileName, blob } : { fileName, url: src });
+    saveImage(src, alt, blob);
     close();
   });
   cancel.addEventListener("click", (event) => {
